@@ -6,9 +6,9 @@ in from a dozen live sources -- ranked by a hybrid skill + semantic score.
 
 ## Features
 
-- Resume parsing (PDF/DOCX) -- extracts skills, years of experience,
+- Resume parsing (PDF/DOCX) - extracts skills, years of experience,
   education, job titles, languages, and certifications
-- Job matching -- hybrid score combining skill overlap, TF-IDF semantic
+- Job matching - hybrid score combining skill overlap, TF-IDF semantic
   similarity, experience-level fit, and nice-to-have skills
 - Job aggregation from Remotive, RemoteOK, Arbeitnow, We Work Remotely,
   Working Nomads, Adzuna, Reed, and Jooble, plus direct company boards on
@@ -18,7 +18,7 @@ in from a dozen live sources -- ranked by a hybrid skill + semantic score.
 - Forgot-password flow (emails a reset link if SMTP is configured; safely
   no-ops otherwise)
 - Save jobs, track applications, dark mode
-- Daily background sync so new listings show up automatically -- no manual
+- Daily background sync so new listings show up automatically - no manual
   refresh needed
 
 ## Stack
@@ -59,7 +59,7 @@ the full list and where to get each key:
 - `ENABLE_JOB_SYNC_SCHEDULER` / `JOB_SYNC_INTERVAL_HOURS` -- controls the
   automatic job sync
 
-Sources without keys configured just no-op during sync -- nothing breaks if
+Sources without keys configured just no-op during sync - nothing breaks if
 you leave some blank.
 
 ## Useful commands
