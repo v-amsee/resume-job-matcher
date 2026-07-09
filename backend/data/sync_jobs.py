@@ -92,7 +92,12 @@ def sync_source(db, source_name: str, source: JobSource, fetch_fn) -> None:
     try:
         for job_data in fetch_fn():
             external_id = job_data.get("external_id")
-            if not external_id:
+            if not external_id or external_id in seen_external_ids:
+                # some feeds (We Work Remotely in particular) list the same
+                # posting more than once in a single pull -- without this,
+                # the second copy hits the (source, external_id) unique
+                # constraint at commit time since it's still just a pending
+                # insert here, not yet a committed row the dupe check above sees
                 continue
             seen_external_ids.add(external_id)
 
@@ -111,11 +116,15 @@ def sync_source(db, source_name: str, source: JobSource, fetch_fn) -> None:
             else:
                 db.add(Job(employer_id=None, source=source, external_id=external_id, **fields))
                 created += 1
+
+        db.commit()
     except Exception as e:
+        # commit is inside the try now too -- a bad flush shouldn't leave
+        # the session's transaction aborted for every source that runs
+        # after this one in the same sync() call
+        db.rollback()
         print(f"  ! {source_name} sync failed partway through: {e}")
         failed = True
-
-    db.commit()
 
     delisted = 0
     if not failed:
