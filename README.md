@@ -2,7 +2,7 @@
 
 A personal job-search tool: upload your resume, it parses out your skills,
 experience, and education, then matches you against real job listings pulled
-in from a dozen live sources -- ranked by a hybrid skill + semantic score.
+in from a dozen live sources - ranked by a hybrid skill + semantic score.
 
 ## Features
 
@@ -50,13 +50,13 @@ Everything in `.env` is optional except the database connection, which
 `docker-compose.yml` already sets up for you locally. See `.env.example` for
 the full list and where to get each key:
 
-- `GOOGLE_CLIENT_ID` -- enables the "Sign in with Google" button
-- `ADZUNA_APP_ID` / `ADZUNA_APP_KEY`, `REED_API_KEY`, `JOOBLE_API_KEY` --
+- `GOOGLE_CLIENT_ID` - enables the "Sign in with Google" button
+- `ADZUNA_APP_ID` / `ADZUNA_APP_KEY`, `REED_API_KEY`, `JOOBLE_API_KEY` -
   each additional job source you configure adds more listings to the sync
-- `SMTP_SERVER` / `SMTP_USER` / `SMTP_PASSWORD` -- sends real
+- `SMTP_SERVER` / `SMTP_USER` / `SMTP_PASSWORD` - sends real
   forgot-password emails; without these, the reset link just gets logged
   instead
-- `ENABLE_JOB_SYNC_SCHEDULER` / `JOB_SYNC_INTERVAL_HOURS` -- controls the
+- `ENABLE_JOB_SYNC_SCHEDULER` / `JOB_SYNC_INTERVAL_HOURS` - controls the
   automatic job sync
 
 Sources without keys configured just no-op during sync - nothing breaks if
