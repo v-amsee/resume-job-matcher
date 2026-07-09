@@ -11,7 +11,7 @@ const VARIANTS = {
 export default function SkillPill({ skill, variant = 'default', className = '' }) {
   return (
     <span
-      className={`inline-block px-3 py-1 rounded-full text-xs font-medium whitespace-nowrap ${VARIANTS[variant] || VARIANTS.default} ${className}`}
+      className={`inline-block max-w-full px-3 py-1 rounded-full text-xs font-medium break-words ${VARIANTS[variant] || VARIANTS.default} ${className}`}
     >
       {formatSkill(skill)}
     </span>

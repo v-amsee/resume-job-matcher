@@ -63,10 +63,22 @@ async def get_matched_jobs(
     
     # Get all active jobs
     jobs = db.query(Job).filter(Job.is_active == True).all()
-    
+
+    # One query each instead of two per job -- with thousands of synced
+    # jobs, a per-job SavedJob/Application lookup turns into thousands of
+    # extra round trips and was the main reason this endpoint got slow.
+    saved_ids = {
+        row.job_id for row in
+        db.query(SavedJob.job_id).filter(SavedJob.user_id == current_user.id).all()
+    }
+    applied_ids = {
+        row.job_id for row in
+        db.query(Application.job_id).filter(Application.user_id == current_user.id).all()
+    }
+
     # Calculate match for each job
     matched_jobs = []
-    
+
     for job in jobs:
         match_result = matcher.match_job(
             user_skills=resume.skills,
@@ -78,17 +90,9 @@ async def get_matched_jobs(
             job_description_text=job.description
         )
 
-        # Check if saved or applied
-        is_saved = db.query(SavedJob).filter(
-            SavedJob.user_id == current_user.id,
-            SavedJob.job_id == job.id
-        ).first() is not None
-        
-        is_applied = db.query(Application).filter(
-            Application.user_id == current_user.id,
-            Application.job_id == job.id
-        ).first() is not None
-        
+        is_saved = job.id in saved_ids
+        is_applied = job.id in applied_ids
+
         matched_jobs.append(MatchedJobResponse(
             id=job.id,
             title=job.title,
@@ -244,14 +248,14 @@ async def get_saved_jobs(
     saved_jobs = db.query(SavedJob).filter(
         SavedJob.user_id == current_user.id
     ).all()
-    
+
+    # was re-fetching this same row inside the loop below for every saved job
+    resume = db.query(Resume).filter(Resume.user_id == current_user.id).first()
+
     jobs = []
     for saved in saved_jobs:
         job = db.query(Job).filter(Job.id == saved.job_id).first()
         if job:
-            # Get user's resume for match score
-            resume = db.query(Resume).filter(Resume.user_id == current_user.id).first()
-            
             if resume:
                 match_result = matcher.match_job(
                     user_skills=resume.skills,

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { matchingAPI, applicationsAPI, jobsAPI } from '../services/api';
 import JobCard from '../components/JobCard';
+import MultiSelectDropdown from '../components/MultiSelectDropdown';
 import { ACTIVE_SOURCE_LABELS, SOURCE_LABELS, SPONSORSHIP_LABELS } from '../utils/jobSource';
 
 const PAGE_SIZE = 20;
@@ -40,10 +41,19 @@ export default function MatchedJobs() {
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
   const [loadingMore, setLoadingMore] = useState(false);
+  // ranked mode gets the whole match list back in one API call, but
+  // rendering thousands of cards at once is what was making the page feel
+  // slow to load -- only render a page's worth at a time, same as browse mode
+  const [rankedVisibleCount, setRankedVisibleCount] = useState(PAGE_SIZE);
 
   useEffect(() => {
     loadJobs();
   }, []);
+
+  // any filter change starts back at one page's worth of rendered cards
+  useEffect(() => {
+    setRankedVisibleCount(PAGE_SIZE);
+  }, [filters, filterScore]);
 
   const loadJobs = async () => {
     setLoading(true);
@@ -178,6 +188,7 @@ export default function MatchedJobs() {
   };
 
   const filteredJobs = ranked ? jobs.filter(matchesClientFilters) : jobs;
+  const visibleJobs = ranked ? filteredJobs.slice(0, rankedVisibleCount) : filteredJobs;
 
   if (loading) {
     return (
@@ -298,56 +309,18 @@ export default function MatchedJobs() {
               className={fieldClass}
             />
           </div>
-          <div className="min-w-[160px]">
-            <label className="block text-xs text-gray-500 mb-1 dark:text-gray-400">Source</label>
-            <details className="relative">
-              <summary className={`${fieldClass} cursor-pointer list-none flex items-center justify-between [&::-webkit-details-marker]:hidden`}>
-                <span>{filters.sources.length ? `${filters.sources.length} selected` : 'Any'}</span>
-                <span className="text-gray-400">&#9662;</span>
-              </summary>
-              <div className="absolute z-10 mt-1 w-56 bg-white border border-gray-200 rounded-md shadow-lg p-2 max-h-60 overflow-y-auto dark:bg-gray-800 dark:border-gray-700">
-                {SOURCE_OPTIONS.map(({ value, label }) => (
-                  <label
-                    key={value}
-                    className="flex items-center gap-2 px-2 py-1.5 text-sm text-gray-700 hover:bg-gray-50 rounded cursor-pointer dark:text-gray-300 dark:hover:bg-gray-700"
-                  >
-                    <input
-                      type="checkbox"
-                      checked={filters.sources.includes(value)}
-                      onChange={() => toggleSourceFilter(value)}
-                      className="rounded border-gray-300 text-brand-600 focus:ring-brand-600"
-                    />
-                    {label}
-                  </label>
-                ))}
-              </div>
-            </details>
-          </div>
-          <div className="min-w-[160px]">
-            <label className="block text-xs text-gray-500 mb-1 dark:text-gray-400">Sponsorship</label>
-            <details className="relative">
-              <summary className={`${fieldClass} cursor-pointer list-none flex items-center justify-between [&::-webkit-details-marker]:hidden`}>
-                <span>{filters.sponsorships.length ? `${filters.sponsorships.length} selected` : 'Any'}</span>
-                <span className="text-gray-400">&#9662;</span>
-              </summary>
-              <div className="absolute z-10 mt-1 w-56 bg-white border border-gray-200 rounded-md shadow-lg p-2 dark:bg-gray-800 dark:border-gray-700">
-                {SPONSORSHIP_OPTIONS.map(({ value, label }) => (
-                  <label
-                    key={value}
-                    className="flex items-center gap-2 px-2 py-1.5 text-sm text-gray-700 hover:bg-gray-50 rounded cursor-pointer dark:text-gray-300 dark:hover:bg-gray-700"
-                  >
-                    <input
-                      type="checkbox"
-                      checked={filters.sponsorships.includes(value)}
-                      onChange={() => toggleSponsorshipFilter(value)}
-                      className="rounded border-gray-300 text-brand-600 focus:ring-brand-600"
-                    />
-                    {label}
-                  </label>
-                ))}
-              </div>
-            </details>
-          </div>
+          <MultiSelectDropdown
+            label="Source"
+            options={SOURCE_OPTIONS}
+            selected={filters.sources}
+            onToggle={toggleSourceFilter}
+          />
+          <MultiSelectDropdown
+            label="Sponsorship"
+            options={SPONSORSHIP_OPTIONS}
+            selected={filters.sponsorships}
+            onToggle={toggleSponsorshipFilter}
+          />
           {!ranked && (
             <button
               type="submit"
@@ -373,14 +346,14 @@ export default function MatchedJobs() {
 
       {ranked && jobs.length > 0 && (
         <p className="text-sm text-gray-500 -mt-4 mb-8 dark:text-gray-400">
-          Showing {filteredJobs.length} of {jobs.length} jobs
+          Showing {visibleJobs.length} of {filteredJobs.length} jobs
         </p>
       )}
 
       {filteredJobs.length > 0 ? (
         <>
           <div className="grid gap-4">
-            {filteredJobs.map((job) => (
+            {visibleJobs.map((job) => (
               <JobCard
                 key={job.id}
                 job={job}
@@ -400,6 +373,17 @@ export default function MatchedJobs() {
                 className="px-5 py-2 border border-gray-200 text-gray-700 text-sm font-medium rounded-md hover:border-gray-300 disabled:opacity-50 dark:border-gray-700 dark:text-gray-300 dark:hover:border-gray-600"
               >
                 {loadingMore ? 'Loading…' : 'Load more'}
+              </button>
+            </div>
+          )}
+
+          {ranked && rankedVisibleCount < filteredJobs.length && (
+            <div className="text-center mt-8">
+              <button
+                onClick={() => setRankedVisibleCount((count) => count + PAGE_SIZE)}
+                className="px-5 py-2 border border-gray-200 text-gray-700 text-sm font-medium rounded-md hover:border-gray-300 dark:border-gray-700 dark:text-gray-300 dark:hover:border-gray-600"
+              >
+                Load more
               </button>
             </div>
           )}
