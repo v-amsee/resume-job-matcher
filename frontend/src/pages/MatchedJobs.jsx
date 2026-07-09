@@ -2,9 +2,16 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { matchingAPI, applicationsAPI, jobsAPI } from '../services/api';
 import JobCard from '../components/JobCard';
-import { ACTIVE_SOURCE_LABELS } from '../utils/jobSource';
+import { ACTIVE_SOURCE_LABELS, SOURCE_LABELS, SPONSORSHIP_LABELS } from '../utils/jobSource';
 
 const PAGE_SIZE = 20;
+
+const SOURCE_OPTIONS = Object.entries(SOURCE_LABELS)
+  .filter(([, label]) => label)
+  .map(([value, label]) => ({ value, label }));
+
+const SPONSORSHIP_OPTIONS = Object.entries(SPONSORSHIP_LABELS)
+  .map(([value, label]) => ({ value, label }));
 
 const EMPTY_FILTERS = {
   location: '',
@@ -12,6 +19,8 @@ const EMPTY_FILTERS = {
   experienceLevel: '',
   minSalary: '',
   maxSalary: '',
+  sources: [],
+  sponsorships: [],
 };
 
 const fieldClass =
@@ -63,6 +72,8 @@ export default function MatchedJobs() {
     experience_level: f.experienceLevel,
     min_salary: f.minSalary,
     max_salary: f.maxSalary,
+    source: f.sources.join(','),
+    sponsorship: f.sponsorships.join(','),
   });
 
   const loadBrowseJobs = async (pageToLoad, f, append = false) => {
@@ -108,6 +119,24 @@ export default function MatchedJobs() {
     setFilters((prev) => ({ ...prev, [key]: value }));
   };
 
+  const toggleSourceFilter = (value) => {
+    setFilters((prev) => ({
+      ...prev,
+      sources: prev.sources.includes(value)
+        ? prev.sources.filter((s) => s !== value)
+        : [...prev.sources, value],
+    }));
+  };
+
+  const toggleSponsorshipFilter = (value) => {
+    setFilters((prev) => ({
+      ...prev,
+      sponsorships: prev.sponsorships.includes(value)
+        ? prev.sponsorships.filter((s) => s !== value)
+        : [...prev.sponsorships, value],
+    }));
+  };
+
   const handleApply = async (jobId) => {
     try {
       await applicationsAPI.create(jobId, null);
@@ -143,6 +172,8 @@ export default function MatchedJobs() {
     // mirrors the backend's salary_min/max filter semantics
     if (filters.minSalary && !(job.salary_min >= Number(filters.minSalary))) return false;
     if (filters.maxSalary && !(job.salary_max > 0 && job.salary_max <= Number(filters.maxSalary))) return false;
+    if (filters.sources.length && !filters.sources.includes(job.source)) return false;
+    if (filters.sponsorships.length && !filters.sponsorships.includes(job.sponsorship)) return false;
     return true;
   };
 
@@ -267,6 +298,56 @@ export default function MatchedJobs() {
               className={fieldClass}
             />
           </div>
+          <div className="min-w-[160px]">
+            <label className="block text-xs text-gray-500 mb-1 dark:text-gray-400">Source</label>
+            <details className="relative">
+              <summary className={`${fieldClass} cursor-pointer list-none flex items-center justify-between [&::-webkit-details-marker]:hidden`}>
+                <span>{filters.sources.length ? `${filters.sources.length} selected` : 'Any'}</span>
+                <span className="text-gray-400">&#9662;</span>
+              </summary>
+              <div className="absolute z-10 mt-1 w-56 bg-white border border-gray-200 rounded-md shadow-lg p-2 max-h-60 overflow-y-auto dark:bg-gray-800 dark:border-gray-700">
+                {SOURCE_OPTIONS.map(({ value, label }) => (
+                  <label
+                    key={value}
+                    className="flex items-center gap-2 px-2 py-1.5 text-sm text-gray-700 hover:bg-gray-50 rounded cursor-pointer dark:text-gray-300 dark:hover:bg-gray-700"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={filters.sources.includes(value)}
+                      onChange={() => toggleSourceFilter(value)}
+                      className="rounded border-gray-300 text-brand-600 focus:ring-brand-600"
+                    />
+                    {label}
+                  </label>
+                ))}
+              </div>
+            </details>
+          </div>
+          <div className="min-w-[160px]">
+            <label className="block text-xs text-gray-500 mb-1 dark:text-gray-400">Sponsorship</label>
+            <details className="relative">
+              <summary className={`${fieldClass} cursor-pointer list-none flex items-center justify-between [&::-webkit-details-marker]:hidden`}>
+                <span>{filters.sponsorships.length ? `${filters.sponsorships.length} selected` : 'Any'}</span>
+                <span className="text-gray-400">&#9662;</span>
+              </summary>
+              <div className="absolute z-10 mt-1 w-56 bg-white border border-gray-200 rounded-md shadow-lg p-2 dark:bg-gray-800 dark:border-gray-700">
+                {SPONSORSHIP_OPTIONS.map(({ value, label }) => (
+                  <label
+                    key={value}
+                    className="flex items-center gap-2 px-2 py-1.5 text-sm text-gray-700 hover:bg-gray-50 rounded cursor-pointer dark:text-gray-300 dark:hover:bg-gray-700"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={filters.sponsorships.includes(value)}
+                      onChange={() => toggleSponsorshipFilter(value)}
+                      className="rounded border-gray-300 text-brand-600 focus:ring-brand-600"
+                    />
+                    {label}
+                  </label>
+                ))}
+              </div>
+            </details>
+          </div>
           {!ranked && (
             <button
               type="submit"
@@ -275,7 +356,7 @@ export default function MatchedJobs() {
               Apply filters
             </button>
           )}
-          {(filters.location || filters.jobType || filters.experienceLevel || filters.minSalary || filters.maxSalary) && (
+          {(filters.location || filters.jobType || filters.experienceLevel || filters.minSalary || filters.maxSalary || filters.sources.length > 0 || filters.sponsorships.length > 0) && (
             <button
               type="button"
               onClick={() => {

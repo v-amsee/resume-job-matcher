@@ -166,24 +166,29 @@ async def update_application(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Update application status (employer only)"""
-    
+    """Update an application's status/interview info. Almost every job here
+    is external, so it's really the applicant self-reporting how things went
+    (interview, rejected, etc) rather than an employer moving a candidate
+    through a pipeline -- there's no employer on the other end for those.
+    Still allow the job's employer too, for the rare internally-posted job."""
+
     application = db.query(Application).filter(
         Application.id == application_id
     ).first()
-    
+
     if not application:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Application not found"
         )
-    
-    # Check permission (must be job employer)
+
     job = db.query(Job).filter(Job.id == application.job_id).first()
-    if job.employer_id != current_user.id:
+    is_owner = application.user_id == current_user.id
+    is_employer = job is not None and job.employer_id == current_user.id
+    if not is_owner and not is_employer:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="You can only update applications for your own jobs"
+            detail="You don't have permission to update this application"
         )
     
     # Update fields
@@ -233,7 +238,9 @@ async def schedule_interview(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Schedule interview with candidate"""
+    """Schedule an interview. Same ownership rule as update_application --
+    usually this is the applicant logging an interview they were invited to,
+    not an employer scheduling one through the app."""
 
     application = db.query(Application).filter(
         Application.id == application_id
@@ -245,12 +252,13 @@ async def schedule_interview(
             detail="Application not found"
         )
 
-    # Check permission
     job = db.query(Job).filter(Job.id == application.job_id).first()
-    if job.employer_id != current_user.id:
+    is_owner = application.user_id == current_user.id
+    is_employer = job is not None and job.employer_id == current_user.id
+    if not is_owner and not is_employer:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="You can only schedule interviews for your own jobs"
+            detail="You don't have permission to schedule an interview for this application"
         )
 
     application.status = ApplicationStatus.INTERVIEW_SCHEDULED

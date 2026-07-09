@@ -47,3 +47,13 @@ export const SPONSORSHIP_BADGES = {
 export function sponsorshipBadge(sponsorship) {
   return SPONSORSHIP_BADGES[sponsorship] || null;
 }
+
+// Separate from SPONSORSHIP_BADGES since not_mentioned deliberately has no
+// badge on the card (it's the common case, showing it everywhere would be
+// noise) but still needs a real label to appear as a filter option.
+export const SPONSORSHIP_LABELS = {
+  sponsors: 'Sponsors visa',
+  may_sponsor: 'May sponsor',
+  unlikely: 'Unlikely to sponsor',
+  not_mentioned: 'Not mentioned',
+};

@@ -1,5 +1,7 @@
 # Resume Parser & Job Matcher
 
+**Live demo:** [bubbly-adventure-production.up.railway.app](https://bubbly-adventure-production.up.railway.app)
+
 A personal job-search tool: upload your resume, it parses out your skills,
 experience, and education, then matches you against real job listings pulled
 in from a dozen live sources -- ranked by a hybrid skill + semantic score.

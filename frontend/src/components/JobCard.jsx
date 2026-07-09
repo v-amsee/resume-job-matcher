@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { sourceLabel, sponsorshipBadge } from '../utils/jobSource';
 import SkillPill from './SkillPill';
@@ -12,6 +13,10 @@ export default function JobCard({ job, onApply, onSave, matchScore, showApply = 
   const navigate = useNavigate();
   const source = sourceLabel(job.source);
   const badge = sponsorshipBadge(job.sponsorship);
+  // External jobs: clicking Apply just opens the real posting -- we don't
+  // know if they actually went through with it there, so wait for them to
+  // come back and say so instead of logging it right away.
+  const [awaitingConfirm, setAwaitingConfirm] = useState(false);
 
   const handleCardClick = () => {
     navigate(`/jobs/${job.id}`);
@@ -19,13 +24,24 @@ export default function JobCard({ job, onApply, onSave, matchScore, showApply = 
 
   const handleApplyClick = (e) => {
     e.stopPropagation();
-    // External jobs: open the real posting so the user applies there, and
-    // still record an Application locally (via onApply) so it shows up in
-    // the Applications tracker exactly like an internal job would.
     if (job.apply_url) {
       window.open(job.apply_url, '_blank', 'noopener,noreferrer');
+      setAwaitingConfirm(true);
+      return;
     }
+    // internal job, nothing external to confirm -- applying is the whole action
     onApply?.(job.id);
+  };
+
+  const handleConfirmApplied = (e) => {
+    e.stopPropagation();
+    onApply?.(job.id);
+    setAwaitingConfirm(false);
+  };
+
+  const handleDismissConfirm = (e) => {
+    e.stopPropagation();
+    setAwaitingConfirm(false);
   };
 
   const handleSaveClick = (e) => {
@@ -124,17 +140,34 @@ export default function JobCard({ job, onApply, onSave, matchScore, showApply = 
 
       <div className="flex gap-2 pt-4 border-t border-gray-100 dark:border-gray-800">
         {showApply && (
-          <button
-            onClick={handleApplyClick}
-            disabled={job.is_applied}
-            className={`flex-1 py-2 rounded-md text-sm font-medium transition ${
-              job.is_applied
-                ? 'bg-gray-100 text-gray-400 cursor-not-allowed dark:bg-gray-800 dark:text-gray-600'
-                : 'bg-gray-900 text-white hover:bg-black dark:bg-gray-100 dark:text-gray-900 dark:hover:bg-white'
-            }`}
-          >
-            {job.is_applied ? 'Applied' : source ? `Apply on ${source}` : 'Apply now'}
-          </button>
+          awaitingConfirm && !job.is_applied ? (
+            <div className="flex-1 flex gap-2">
+              <button
+                onClick={handleConfirmApplied}
+                className="flex-1 py-2 rounded-md text-sm font-medium bg-gray-900 text-white hover:bg-black dark:bg-gray-100 dark:text-gray-900 dark:hover:bg-white"
+              >
+                Mark as applied
+              </button>
+              <button
+                onClick={handleDismissConfirm}
+                className="px-3 py-2 rounded-md text-sm font-medium text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200"
+              >
+                Didn&rsquo;t apply
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={handleApplyClick}
+              disabled={job.is_applied}
+              className={`flex-1 py-2 rounded-md text-sm font-medium transition ${
+                job.is_applied
+                  ? 'bg-gray-100 text-gray-400 cursor-not-allowed dark:bg-gray-800 dark:text-gray-600'
+                  : 'bg-gray-900 text-white hover:bg-black dark:bg-gray-100 dark:text-gray-900 dark:hover:bg-white'
+              }`}
+            >
+              {job.is_applied ? 'Applied' : source ? `Apply on ${source}` : 'Apply now'}
+            </button>
+          )
         )}
         <button
           onClick={handleSaveClick}

@@ -11,6 +11,7 @@ export default function JobDetails({ user }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [hasApplied, setHasApplied] = useState(false);
+  const [awaitingConfirm, setAwaitingConfirm] = useState(false);
   const [isSaved, setIsSaved] = useState(false);
   const [matchInfo, setMatchInfo] = useState(null);
 
@@ -45,15 +46,28 @@ export default function JobDetails({ user }) {
   };
 
   const handleApply = async () => {
-    // External jobs: open the real posting so the user applies there, and
-    // still record an Application locally so it shows up in the
-    // Applications tracker exactly like an internal job would.
+    // External jobs: just open the real posting first. We don't know if
+    // they actually finish applying there, so wait for them to confirm
+    // before logging it -- see handleConfirmApplied.
     if (job.apply_url) {
       window.open(job.apply_url, '_blank', 'noopener,noreferrer');
+      setAwaitingConfirm(true);
+      return;
     }
+    // internal job, nothing external to confirm
     try {
       await applicationsAPI.create(jobId, null);
       setHasApplied(true);
+    } catch (error) {
+      alert(error.response?.data?.detail || 'Error applying for job');
+    }
+  };
+
+  const handleConfirmApplied = async () => {
+    try {
+      await applicationsAPI.create(jobId, null);
+      setHasApplied(true);
+      setAwaitingConfirm(false);
     } catch (error) {
       alert(error.response?.data?.detail || 'Error applying for job');
     }
@@ -226,17 +240,34 @@ export default function JobDetails({ user }) {
         {/* Actions */}
         {user?.user_type === 'job_seeker' && (
           <div className="flex gap-3 pt-8 border-t border-gray-100 dark:border-gray-800">
-            <button
-              onClick={handleApply}
-              disabled={hasApplied}
-              className={`flex-1 py-3 rounded-md font-medium transition ${
-                hasApplied
-                  ? 'bg-gray-100 text-gray-400 cursor-not-allowed dark:bg-gray-800 dark:text-gray-600'
-                  : 'bg-gray-900 text-white hover:bg-black dark:bg-gray-100 dark:text-gray-900 dark:hover:bg-white'
-              }`}
-            >
-              {hasApplied ? 'Applied' : source ? `Apply on ${source}` : 'Apply now'}
-            </button>
+            {awaitingConfirm && !hasApplied ? (
+              <div className="flex-1 flex gap-3">
+                <button
+                  onClick={handleConfirmApplied}
+                  className="flex-1 py-3 rounded-md font-medium bg-gray-900 text-white hover:bg-black dark:bg-gray-100 dark:text-gray-900 dark:hover:bg-white"
+                >
+                  Mark as applied
+                </button>
+                <button
+                  onClick={() => setAwaitingConfirm(false)}
+                  className="px-4 py-3 rounded-md font-medium text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200"
+                >
+                  Didn&rsquo;t apply
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={handleApply}
+                disabled={hasApplied}
+                className={`flex-1 py-3 rounded-md font-medium transition ${
+                  hasApplied
+                    ? 'bg-gray-100 text-gray-400 cursor-not-allowed dark:bg-gray-800 dark:text-gray-600'
+                    : 'bg-gray-900 text-white hover:bg-black dark:bg-gray-100 dark:text-gray-900 dark:hover:bg-white'
+                }`}
+              >
+                {hasApplied ? 'Applied' : source ? `Apply on ${source}` : 'Apply now'}
+              </button>
+            )}
             <button
               onClick={handleSave}
               className={`px-6 py-3 rounded-md font-medium border transition ${

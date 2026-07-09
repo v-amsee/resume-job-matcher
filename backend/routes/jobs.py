@@ -110,6 +110,8 @@ async def get_jobs(
     min_salary: Optional[float] = None,
     max_salary: Optional[float] = None,
     experience_level: Optional[str] = None,
+    source: Optional[str] = None,
+    sponsorship: Optional[str] = None,
     current_user: Optional[User] = Depends(get_optional_user),
     db: Session = Depends(get_db)
 ):
@@ -134,6 +136,18 @@ async def get_jobs(
         query = query.filter(Job.salary_max <= max_salary)
     if experience_level:
         query = query.filter(Job.experience_level == experience_level)
+    if source:
+        # comma-separated list from the frontend's multi-select, e.g.
+        # "greenhouse,lever,adzuna" -- drop anything that isn't a real source
+        requested = {s.strip() for s in source.split(",") if s.strip()}
+        valid = [s for s in requested if s in JobSource._value2member_map_]
+        if valid:
+            query = query.filter(Job.source.in_(valid))
+    if sponsorship:
+        requested = {s.strip() for s in sponsorship.split(",") if s.strip()}
+        valid = [s for s in requested if s in SponsorshipStatus._value2member_map_]
+        if valid:
+            query = query.filter(Job.sponsorship.in_(valid))
 
     # Pagination
     total = query.count()
