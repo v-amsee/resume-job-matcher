@@ -1,0 +1,94 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: resume-matcher-db
+    environment:
+      POSTGRES_USER: resumematcher
+      POSTGRES_PASSWORD: securepassword123
+      POSTGRES_DB: resume_matcher
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      # need -d here or pg_isready checks a db named after the user (resumematcher), which doesn't exist
+      test: ["CMD-SHELL", "pg_isready -U resumematcher -d resume_matcher"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - app-network
+
+  # Backend (FastAPI)
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: resume-matcher-backend
+    environment:
+      DATABASE_URL: postgresql://resumematcher:securepassword123@postgres:5432/resume_matcher
+      JWT_SECRET: your-super-secret-key-min-32-chars-change-this
+      ENVIRONMENT: development
+      PORT: 8000
+      # all optional -- reads from a .env file next to this one, see .env.example
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      ADZUNA_APP_ID: ${ADZUNA_APP_ID:-}
+      ADZUNA_APP_KEY: ${ADZUNA_APP_KEY:-}
+      REED_API_KEY: ${REED_API_KEY:-}
+      JOOBLE_API_KEY: ${JOOBLE_API_KEY:-}
+      # forgot-password email -- left blank, it just logs instead of sending (see auth.py::_send_email)
+      SMTP_SERVER: ${SMTP_SERVER:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:5173}
+      ENABLE_JOB_SYNC_SCHEDULER: ${ENABLE_JOB_SYNC_SCHEDULER:-true}
+      JOB_SYNC_INTERVAL_HOURS: ${JOB_SYNC_INTERVAL_HOURS:-24}
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      # just this one mount -- a second nested mount at backend/uploads used to
+      # trigger "cannot allocate memory" from uvicorn's --reload watcher on Windows/Mac
+      - ./backend:/app
+    networks:
+      - app-network
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload --reload-exclude uploads/* --reload-exclude data/*
+
+  # Frontend (React)
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      # dev stage has vite + devDependencies -- the default prod stage is just
+      # `serve` + compiled dist/, no vite binary, so npm run dev would fail on it
+      target: development
+    container_name: resume-matcher-frontend
+    environment:
+      VITE_API_URL: http://localhost:8000/api
+      # same value as backend's GOOGLE_CLIENT_ID -- fine to expose, it's an id not a secret
+      VITE_GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+    ports:
+      - "5173:5173"
+    depends_on:
+      backend:
+        condition: service_healthy
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    networks:
+      - app-network
+    command: npm run dev -- --host 0.0.0.0
+
+volumes:
+  postgres_data:
+    driver: local
+
+networks:
+  app-network:
+    driver: bridge
