@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 const STEPS = [
@@ -37,8 +38,17 @@ const BENEFITS = [
 export default function Home({ user, onLoginClick }) {
   const navigate = useNavigate();
 
+  // navigate() belongs in an effect, not the render body -- calling it
+  // directly here was the bug behind the logo/home link sometimes doing
+  // nothing: clicking it while already logged in re-renders Home, which
+  // tried to redirect mid-render instead of after, and React can drop that
+  useEffect(() => {
+    if (user) {
+      navigate('/matched-jobs', { replace: true });
+    }
+  }, [user, navigate]);
+
   if (user) {
-    navigate('/matched-jobs', { replace: true });
     return null;
   }
 
