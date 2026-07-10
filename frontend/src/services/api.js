@@ -23,7 +23,12 @@ api.interceptors.request.use((config) => {
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response?.status === 401) {
+    // Only force a redirect if we actually had a session that got rejected
+    // (expired/invalid token). Now that some pages work without logging in,
+    // an anonymous request hitting a protected endpoint also comes back as
+    // 401 -- that's expected there, not a reason to boot someone browsing
+    // without an account back to the homepage.
+    if (error.response?.status === 401 && localStorage.getItem('access_token')) {
       localStorage.removeItem('access_token');
       localStorage.removeItem('user');
       window.location.href = '/';

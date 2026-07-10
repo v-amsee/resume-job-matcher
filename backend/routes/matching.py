@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import List, Optional
+from datetime import datetime
 from pydantic import BaseModel
 
 from database import get_db
@@ -29,6 +30,9 @@ class MatchedJobResponse(BaseModel):
     source: JobSource = JobSource.INTERNAL
     apply_url: Optional[str] = None
     sponsorship: SponsorshipStatus = SponsorshipStatus.NOT_MENTIONED
+    # needed client-side for the "Newest" sort option -- ranked jobs don't
+    # come back paginated/ordered by the DB like the plain job list does
+    posted_at: Optional[datetime] = None
 
     class Config:
         from_attributes = True
@@ -121,9 +125,10 @@ async def get_matched_jobs(
             is_applied=is_applied,
             source=job.source,
             apply_url=job.apply_url,
-            sponsorship=job.sponsorship
+            sponsorship=job.sponsorship,
+            posted_at=job.posted_at
         ))
-    
+
     # Sort by match score
     matched_jobs.sort(key=lambda x: x.match_score, reverse=True)
     
@@ -302,7 +307,8 @@ async def get_saved_jobs(
                 is_applied=False,
                 source=job.source,
                 apply_url=job.apply_url,
-                sponsorship=job.sponsorship
+                sponsorship=job.sponsorship,
+                posted_at=job.posted_at
             ))
     
     return jobs

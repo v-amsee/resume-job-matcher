@@ -4,7 +4,7 @@ import { jobsAPI, applicationsAPI, matchingAPI } from '../services/api';
 import { sourceLabel, sponsorshipBadge } from '../utils/jobSource';
 import SkillPill from '../components/SkillPill';
 
-export default function JobDetails({ user }) {
+export default function JobDetails({ user, onLoginClick }) {
   const { jobId } = useParams();
   const navigate = useNavigate();
   const [job, setJob] = useState(null);
@@ -46,15 +46,20 @@ export default function JobDetails({ user }) {
   };
 
   const handleApply = async () => {
-    // External jobs: just open the real posting first. We don't know if
-    // they actually finish applying there, so wait for them to confirm
-    // before logging it -- see handleConfirmApplied.
+    // External jobs: anyone can open the real posting, logged in or not.
+    // We don't know if they actually finish applying there, so wait for
+    // them to confirm before logging it -- see handleConfirmApplied.
     if (job.apply_url) {
       window.open(job.apply_url, '_blank', 'noopener,noreferrer');
       setAwaitingConfirm(true);
       return;
     }
-    // internal job, nothing external to confirm
+    // internal job, nothing external to confirm -- but recording it does
+    // need an account
+    if (!user) {
+      onLoginClick?.();
+      return;
+    }
     try {
       await applicationsAPI.create(jobId, null);
       setHasApplied(true);
@@ -64,6 +69,10 @@ export default function JobDetails({ user }) {
   };
 
   const handleConfirmApplied = async () => {
+    if (!user) {
+      onLoginClick?.();
+      return;
+    }
     try {
       await applicationsAPI.create(jobId, null);
       setHasApplied(true);
@@ -74,6 +83,10 @@ export default function JobDetails({ user }) {
   };
 
   const handleSave = async () => {
+    if (!user) {
+      onLoginClick?.();
+      return;
+    }
     try {
       if (isSaved) {
         await matchingAPI.unsaveJob(jobId);
@@ -238,46 +251,56 @@ export default function JobDetails({ user }) {
         )}
 
         {/* Actions */}
-        {user?.user_type === 'job_seeker' && (
-          <div className="flex gap-3 pt-8 border-t border-gray-100 dark:border-gray-800">
-            {awaitingConfirm && !hasApplied ? (
-              <div className="flex-1 flex gap-3">
+        {(!user || user.user_type === 'job_seeker') && (
+          <div className="pt-8 border-t border-gray-100 dark:border-gray-800">
+            {!user && (
+              <p className="text-sm text-gray-500 mb-3 dark:text-gray-400">
+                <button onClick={onLoginClick} className="font-medium text-brand-700 hover:underline dark:text-brand-400">
+                  Log in
+                </button>{' '}
+                to see your match score and track this application.
+              </p>
+            )}
+            <div className="flex gap-3">
+              {awaitingConfirm && !hasApplied ? (
+                <div className="flex-1 flex gap-3">
+                  <button
+                    onClick={handleConfirmApplied}
+                    className="flex-1 py-3 rounded-md font-medium bg-gray-900 text-white hover:bg-black dark:bg-gray-100 dark:text-gray-900 dark:hover:bg-white"
+                  >
+                    Mark as applied
+                  </button>
+                  <button
+                    onClick={() => setAwaitingConfirm(false)}
+                    className="px-4 py-3 rounded-md font-medium text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200"
+                  >
+                    Didn&rsquo;t apply
+                  </button>
+                </div>
+              ) : (
                 <button
-                  onClick={handleConfirmApplied}
-                  className="flex-1 py-3 rounded-md font-medium bg-gray-900 text-white hover:bg-black dark:bg-gray-100 dark:text-gray-900 dark:hover:bg-white"
+                  onClick={handleApply}
+                  disabled={hasApplied}
+                  className={`flex-1 py-3 rounded-md font-medium transition ${
+                    hasApplied
+                      ? 'bg-gray-100 text-gray-400 cursor-not-allowed dark:bg-gray-800 dark:text-gray-600'
+                      : 'bg-gray-900 text-white hover:bg-black dark:bg-gray-100 dark:text-gray-900 dark:hover:bg-white'
+                  }`}
                 >
-                  Mark as applied
+                  {hasApplied ? 'Applied' : source ? `Apply on ${source}` : 'Apply now'}
                 </button>
-                <button
-                  onClick={() => setAwaitingConfirm(false)}
-                  className="px-4 py-3 rounded-md font-medium text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200"
-                >
-                  Didn&rsquo;t apply
-                </button>
-              </div>
-            ) : (
+              )}
               <button
-                onClick={handleApply}
-                disabled={hasApplied}
-                className={`flex-1 py-3 rounded-md font-medium transition ${
-                  hasApplied
-                    ? 'bg-gray-100 text-gray-400 cursor-not-allowed dark:bg-gray-800 dark:text-gray-600'
-                    : 'bg-gray-900 text-white hover:bg-black dark:bg-gray-100 dark:text-gray-900 dark:hover:bg-white'
+                onClick={handleSave}
+                className={`px-6 py-3 rounded-md font-medium border transition ${
+                  isSaved
+                    ? 'border-brand-200 bg-brand-50 text-brand-700 dark:border-brand-800 dark:bg-brand-950/50 dark:text-brand-300'
+                    : 'border-gray-200 text-gray-600 hover:border-gray-300 dark:border-gray-700 dark:text-gray-400 dark:hover:border-gray-600'
                 }`}
               >
-                {hasApplied ? 'Applied' : source ? `Apply on ${source}` : 'Apply now'}
+                {isSaved ? 'Saved' : 'Save'}
               </button>
-            )}
-            <button
-              onClick={handleSave}
-              className={`px-6 py-3 rounded-md font-medium border transition ${
-                isSaved
-                  ? 'border-brand-200 bg-brand-50 text-brand-700 dark:border-brand-800 dark:bg-brand-950/50 dark:text-brand-300'
-                  : 'border-gray-200 text-gray-600 hover:border-gray-300 dark:border-gray-700 dark:text-gray-400 dark:hover:border-gray-600'
-              }`}
-            >
-              {isSaved ? 'Saved' : 'Save'}
-            </button>
+            </div>
           </div>
         )}
       </div>

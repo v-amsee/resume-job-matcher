@@ -128,6 +128,9 @@ export default function NavBar({ user, onLogout, onLoginClick, onRegisterClick, 
               </>
             ) : (
               <div className="flex items-center space-x-3">
+                <NavLink to="/matched-jobs" active={location.pathname === '/matched-jobs'}>
+                  Find Jobs
+                </NavLink>
                 <ThemeToggle isDark={isDark} onToggle={onToggleTheme} />
                 <button
                   onClick={onLoginClick}

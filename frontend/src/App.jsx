@@ -117,6 +117,11 @@ function App() {
     setUser(updatedUser);
   };
 
+  const openLogin = () => {
+    setAuthMode('login');
+    setShowAuthModal(true);
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-950">
@@ -133,10 +138,7 @@ function App() {
           onLogout={handleLogout}
           isDark={isDark}
           onToggleTheme={toggleTheme}
-          onLoginClick={() => {
-            setAuthMode('login');
-            setShowAuthModal(true);
-          }}
+          onLoginClick={openLogin}
           onRegisterClick={() => {
             setAuthMode('register');
             setShowAuthModal(true);
@@ -156,19 +158,17 @@ function App() {
         )}
 
         <Routes>
-          {/* Public routes */}
-          <Route path="/" element={<Home user={user} onLoginClick={() => {
-            setAuthMode('login');
-            setShowAuthModal(true);
-          }} />} />
+          {/* Public routes -- browsing jobs doesn't require an account,
+              only applying/saving/uploading a resume does */}
+          <Route path="/" element={<Home user={user} onLoginClick={openLogin} />} />
           <Route path="/reset-password" element={<ResetPassword />} />
+          <Route path="/matched-jobs" element={<MatchedJobs user={user} onLoginClick={openLogin} />} />
+          <Route path="/jobs/:jobId" element={<JobDetails user={user} onLoginClick={openLogin} />} />
 
           {/* Protected routes */}
           {user && (
             <>
               <Route path="/upload-resume" element={<UploadResume />} />
-              <Route path="/matched-jobs" element={<MatchedJobs />} />
-              <Route path="/jobs/:jobId" element={<JobDetails user={user} />} />
               <Route path="/applications" element={<Applications />} />
               <Route path="/saved-jobs" element={<SavedJobs />} />
               <Route path="/profile" element={<Profile user={user} onProfileUpdate={handleProfileUpdate} />} />

@@ -14,6 +14,29 @@ const SOURCE_OPTIONS = Object.entries(SOURCE_LABELS)
 const SPONSORSHIP_OPTIONS = Object.entries(SPONSORSHIP_LABELS)
   .map(([value, label]) => ({ value, label }));
 
+// "match" only makes sense once there's a resume to score against, so it's
+// filtered out of the dropdown in browse mode -- see the render below
+const SORT_OPTIONS = [
+  { value: 'match', label: 'Best match', rankedOnly: true },
+  { value: 'newest', label: 'Newest' },
+  { value: 'salary_high', label: 'Highest salary' },
+  { value: 'salary_low', label: 'Lowest salary' },
+];
+
+// mirrors the backend's nullslast() -- a job with no salary listed sinks to
+// the bottom no matter which direction you're sorting, instead of a missing
+// value (0) reading as "the lowest salary" and floating to the top
+const SORT_COMPARATORS = {
+  match: (a, b) => b.match_score - a.match_score,
+  newest: (a, b) => new Date(b.posted_at || 0) - new Date(a.posted_at || 0),
+  salary_high: (a, b) => (b.salary_max || 0) - (a.salary_max || 0),
+  salary_low: (a, b) => {
+    const aVal = a.salary_min > 0 ? a.salary_min : Infinity;
+    const bVal = b.salary_min > 0 ? b.salary_min : Infinity;
+    return aVal - bVal;
+  },
+};
+
 const EMPTY_FILTERS = {
   location: '',
   jobType: '',
@@ -27,7 +50,7 @@ const EMPTY_FILTERS = {
 const fieldClass =
   'w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-1 focus:ring-brand-600 focus:border-brand-600 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100';
 
-export default function MatchedJobs() {
+export default function MatchedJobs({ user, onLoginClick }) {
   const navigate = useNavigate();
   const [jobs, setJobs] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -37,6 +60,7 @@ export default function MatchedJobs() {
   // ranked = resume on file, jobs come from /matching/jobs with scores.
   // unranked = no resume yet, falls back to the public /jobs listing
   const [ranked, setRanked] = useState(true);
+  const [sortBy, setSortBy] = useState('match');
   const [filters, setFilters] = useState(EMPTY_FILTERS);
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
@@ -58,6 +82,22 @@ export default function MatchedJobs() {
   const loadJobs = async () => {
     setLoading(true);
     setError('');
+
+    // Not logged in at all -- /matching/jobs requires auth, so don't even
+    // try it (that'd just be a 401). Straight to the plain browse listing.
+    if (!user) {
+      setRanked(false);
+      setSortBy('newest');
+      try {
+        await loadBrowseJobs(1, EMPTY_FILTERS, false, 'newest');
+      } catch (error) {
+        setError(error.response?.data?.detail || 'Error loading jobs');
+      } finally {
+        setLoading(false);
+      }
+      return;
+    }
+
     try {
       const response = await matchingAPI.getMatchedJobs();
       setRanked(true);
@@ -66,7 +106,8 @@ export default function MatchedJobs() {
       if (error.response?.status === 400) {
         // No resume on file -- browse everything instead of blocking.
         setRanked(false);
-        await loadBrowseJobs(1, EMPTY_FILTERS);
+        setSortBy('newest');
+        await loadBrowseJobs(1, EMPTY_FILTERS, false, 'newest');
       } else {
         setError(error.response?.data?.detail || 'Error loading jobs');
       }
@@ -76,7 +117,7 @@ export default function MatchedJobs() {
   };
 
   // Backend filter params mirror the ones GET /jobs/ already supports.
-  const toApiFilters = (f) => ({
+  const toApiFilters = (f, sort) => ({
     location: f.location,
     job_type: f.jobType,
     experience_level: f.experienceLevel,
@@ -84,11 +125,15 @@ export default function MatchedJobs() {
     max_salary: f.maxSalary,
     source: f.sources.join(','),
     sponsorship: f.sponsorships.join(','),
+    sort,
   });
 
-  const loadBrowseJobs = async (pageToLoad, f, append = false) => {
+  // sortOverride defaults to the current sortBy state, but callers that
+  // just changed the sort dropdown pass the new value explicitly -- setSortBy
+  // won't have landed in this closure's `sortBy` yet by the time they call this
+  const loadBrowseJobs = async (pageToLoad, f, append = false, sortOverride = sortBy) => {
     const cleanFilters = Object.fromEntries(
-      Object.entries(toApiFilters(f)).filter(([, v]) => v)
+      Object.entries(toApiFilters(f, sortOverride)).filter(([, v]) => v)
     );
     const response = await jobsAPI.getAll(pageToLoad, PAGE_SIZE, cleanFilters);
     const totalCount = parseInt(response.headers['x-total-count'] || '0', 10);
@@ -129,6 +174,23 @@ export default function MatchedJobs() {
     setFilters((prev) => ({ ...prev, [key]: value }));
   };
 
+  // ranked mode just re-sorts what's already in memory. browse mode is
+  // paginated server-side, so a sort change means re-fetching page 1 with
+  // the new order instead of just re-sorting the one page we have loaded.
+  const handleSortChange = async (value) => {
+    setSortBy(value);
+    if (ranked) return;
+
+    setLoading(true);
+    try {
+      await loadBrowseJobs(1, filters, false, value);
+    } catch (error) {
+      setError(error.response?.data?.detail || 'Error loading jobs');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const toggleSourceFilter = (value) => {
     setFilters((prev) => ({
       ...prev,
@@ -148,6 +210,10 @@ export default function MatchedJobs() {
   };
 
   const handleApply = async (jobId) => {
+    if (!user) {
+      onLoginClick?.();
+      return;
+    }
     try {
       await applicationsAPI.create(jobId, null);
       setJobs(jobs.map(job =>
@@ -159,6 +225,10 @@ export default function MatchedJobs() {
   };
 
   const handleSave = async (jobId) => {
+    if (!user) {
+      onLoginClick?.();
+      return;
+    }
     try {
       const job = jobs.find(j => j.id === jobId);
       if (job.is_saved) {
@@ -187,7 +257,9 @@ export default function MatchedJobs() {
     return true;
   };
 
-  const filteredJobs = ranked ? jobs.filter(matchesClientFilters) : jobs;
+  const filteredJobs = ranked
+    ? jobs.filter(matchesClientFilters).sort(SORT_COMPARATORS[sortBy] || SORT_COMPARATORS.match)
+    : jobs;
   const visibleJobs = ranked ? filteredJobs.slice(0, rankedVisibleCount) : filteredJobs;
 
   if (loading) {
@@ -212,7 +284,21 @@ export default function MatchedJobs() {
         Jobs sourced from {ACTIVE_SOURCE_LABELS.join(', ')}.
       </p>
 
-      {!ranked && (
+      {!ranked && !user && (
+        <div className="mb-8 p-4 bg-brand-50 border border-brand-200 rounded-lg dark:bg-brand-950/30 dark:border-brand-900">
+          <p className="text-sm text-brand-800 dark:text-brand-300">
+            Log in and upload your resume to see a match score and matched skills for every job.
+          </p>
+          <button
+            onClick={onLoginClick}
+            className="mt-3 px-4 py-2 bg-gray-900 text-white text-sm rounded-md hover:bg-black dark:bg-gray-100 dark:text-gray-900 dark:hover:bg-white"
+          >
+            Log in
+          </button>
+        </div>
+      )}
+
+      {!ranked && user && (
         <div className="mb-8 p-4 bg-brand-50 border border-brand-200 rounded-lg dark:bg-brand-950/30 dark:border-brand-900">
           <p className="text-sm text-brand-800 dark:text-brand-300">
             Upload your resume to see a match score and matched skills for every job.
@@ -321,6 +407,18 @@ export default function MatchedJobs() {
             selected={filters.sponsorships}
             onToggle={toggleSponsorshipFilter}
           />
+          <div className="min-w-[150px]">
+            <label className="block text-xs text-gray-500 mb-1 dark:text-gray-400">Sort by</label>
+            <select
+              value={sortBy}
+              onChange={(e) => handleSortChange(e.target.value)}
+              className={fieldClass}
+            >
+              {SORT_OPTIONS.filter((opt) => ranked || !opt.rankedOnly).map((opt) => (
+                <option key={opt.value} value={opt.value}>{opt.label}</option>
+              ))}
+            </select>
+          </div>
           {!ranked && (
             <button
               type="submit"

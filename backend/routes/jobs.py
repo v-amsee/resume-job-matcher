@@ -64,6 +64,16 @@ class JobResponse(BaseModel):
 class EmployerJobResponse(JobResponse):
     application_count: int = 0
 
+# nullslast() so jobs with no salary posted don't float to the top just
+# because NULL sorts first by default -- they should sink to the bottom
+# regardless of which salary direction someone's sorting by
+SORT_OPTIONS = {
+    "newest": Job.posted_at.desc(),
+    "oldest": Job.posted_at.asc(),
+    "salary_high": Job.salary_max.desc().nullslast(),
+    "salary_low": Job.salary_min.asc().nullslast(),
+}
+
 # Routes
 @router.post("/", response_model=JobResponse)
 async def create_job(
@@ -112,6 +122,7 @@ async def get_jobs(
     experience_level: Optional[str] = None,
     source: Optional[str] = None,
     sponsorship: Optional[str] = None,
+    sort: Optional[str] = None,
     current_user: Optional[User] = Depends(get_optional_user),
     db: Session = Depends(get_db)
 ):
@@ -152,7 +163,8 @@ async def get_jobs(
     # Pagination
     total = query.count()
     response.headers["X-Total-Count"] = str(total)
-    jobs = query.order_by(Job.posted_at.desc()).offset((page - 1) * limit).limit(limit).all()
+    order = SORT_OPTIONS.get(sort, SORT_OPTIONS["newest"])
+    jobs = query.order_by(order).offset((page - 1) * limit).limit(limit).all()
 
     saved_ids = set()
     applied_ids = set()
