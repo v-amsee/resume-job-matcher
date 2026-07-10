@@ -1,4 +1,4 @@
-from typing import List, Dict, Tuple
+from typing import List, Dict, Tuple, Optional
 from sklearn.metrics.pairwise import cosine_similarity
 from sklearn.feature_extraction.text import TfidfVectorizer
 
@@ -27,6 +27,26 @@ class JobMatcher:
             # any usable content (very short/unusual input) -- treat that as
             # no semantic signal rather than raising.
             return 0.0
+
+    @staticmethod
+    def calculate_batch_semantic_similarity(user_text: str, job_texts: List[str]) -> List[float]:
+        """Same as calculate_semantic_similarity, but for scoring one resume
+        against many jobs at once. Fits a single vectorizer across the resume
+        plus every job text instead of building a fresh one per job -- with a
+        few thousand jobs, that per-job rebuild was the main thing making the
+        matched-jobs page slow to load."""
+        user_text = (user_text or "").strip()
+
+        if not user_text or not any(job_texts):
+            return [0.0] * len(job_texts)
+
+        try:
+            vectorizer = TfidfVectorizer()
+            tfidf_matrix = vectorizer.fit_transform([user_text] + list(job_texts))
+            similarities = cosine_similarity(tfidf_matrix[0:1], tfidf_matrix[1:])[0]
+            return [float(s) * 100 for s in similarities]
+        except ValueError:
+            return [0.0] * len(job_texts)
 
     @staticmethod
     def calculate_skill_match(user_skills: List[str], job_required_skills: List[str]) -> Tuple[float, List[str], List[str]]:
@@ -86,7 +106,8 @@ class JobMatcher:
     def match_job(user_skills: List[str], job_required_skills: List[str],
                   job_nice_to_have: List[str], user_experience_years: int,
                   job_experience_level: str, user_resume_text: str = "",
-                  job_description_text: str = "") -> Dict:
+                  job_description_text: str = "",
+                  precomputed_semantic_similarity: Optional[float] = None) -> Dict:
         """Overall match score for a job.
 
         Scoring breakdown:
@@ -98,6 +119,10 @@ class JobMatcher:
         user_resume_text / job_description_text are optional -- if left out,
         this falls back to the skill lists so semantic scoring still has
         something to work with instead of just contributing zero.
+
+        precomputed_semantic_similarity lets a caller scoring one resume
+        against many jobs skip the per-job TF-IDF work here and pass in a
+        similarity it already got from calculate_batch_semantic_similarity.
         """
 
         # Structured skill match (55%)
@@ -107,11 +132,14 @@ class JobMatcher:
         base_score = (skill_match / 100) * 55
 
         # Semantic similarity (20%)
-        resume_text = user_resume_text.strip() if user_resume_text else " ".join(user_skills)
-        job_text = job_description_text.strip() if job_description_text else " ".join(
-            job_required_skills + job_nice_to_have
-        )
-        semantic_similarity = JobMatcher.calculate_semantic_similarity(resume_text, job_text)
+        if precomputed_semantic_similarity is not None:
+            semantic_similarity = precomputed_semantic_similarity
+        else:
+            resume_text = user_resume_text.strip() if user_resume_text else " ".join(user_skills)
+            job_text = job_description_text.strip() if job_description_text else " ".join(
+                job_required_skills + job_nice_to_have
+            )
+            semantic_similarity = JobMatcher.calculate_semantic_similarity(resume_text, job_text)
         semantic_score = (semantic_similarity / 100) * 20
 
         # Experience match (15%)

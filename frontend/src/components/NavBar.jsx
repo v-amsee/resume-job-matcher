@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 
 function NavLink({ to, active, children }) {
@@ -38,7 +38,24 @@ function ThemeToggle({ isDark, onToggle }) {
 
 export default function NavBar({ user, onLogout, onLoginClick, onRegisterClick, isDark, onToggleTheme }) {
   const [menuOpen, setMenuOpen] = useState(false);
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const userMenuRef = useRef(null);
   const location = useLocation();
+
+  // was a CSS group-hover dropdown -- the small gap between the button and
+  // the menu below it broke the hover the moment the mouse moved diagonally,
+  // closing the menu before a click on Profile/Sign out could land. Click to
+  // open/close instead, and close on an outside click.
+  useEffect(() => {
+    if (!userMenuOpen) return;
+    const handleClickOutside = (e) => {
+      if (userMenuRef.current && !userMenuRef.current.contains(e.target)) {
+        setUserMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [userMenuOpen]);
 
   return (
     <nav className="bg-white border-b border-gray-200 dark:bg-gray-900 dark:border-gray-800">
@@ -73,31 +90,40 @@ export default function NavBar({ user, onLogout, onLoginClick, onRegisterClick, 
                 <ThemeToggle isDark={isDark} onToggle={onToggleTheme} />
 
                 {/* User Menu */}
-                <div className="relative group ml-2">
-                  <button className="flex items-center gap-2 pl-2 pr-1 py-1.5 rounded-md text-gray-700 hover:bg-gray-50 font-medium text-sm dark:text-gray-300 dark:hover:bg-gray-800">
+                <div className="relative ml-2" ref={userMenuRef}>
+                  <button
+                    onClick={() => setUserMenuOpen((prev) => !prev)}
+                    className="flex items-center gap-2 pl-2 pr-1 py-1.5 rounded-md text-gray-700 hover:bg-gray-50 font-medium text-sm dark:text-gray-300 dark:hover:bg-gray-800"
+                  >
                     <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-gray-100 text-gray-600 text-xs font-semibold dark:bg-gray-800 dark:text-gray-300">
                       {user.name?.[0]?.toUpperCase() || '?'}
                     </span>
                     {user.name}
                   </button>
-                  <div className="absolute right-0 mt-1 w-52 bg-white rounded-lg border border-gray-200 shadow-lg hidden group-hover:block z-10 dark:bg-gray-900 dark:border-gray-700">
-                    <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-800">
-                      <p className="text-sm font-medium text-gray-900 truncate dark:text-gray-100">{user.email}</p>
-                      <p className="text-xs text-gray-500 capitalize mt-0.5 dark:text-gray-400">{user.user_type.replace('_', ' ')}</p>
+                  {userMenuOpen && (
+                    <div className="absolute right-0 mt-1 w-52 bg-white rounded-lg border border-gray-200 shadow-lg z-10 dark:bg-gray-900 dark:border-gray-700">
+                      <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-800">
+                        <p className="text-sm font-medium text-gray-900 truncate dark:text-gray-100">{user.email}</p>
+                        <p className="text-xs text-gray-500 capitalize mt-0.5 dark:text-gray-400">{user.user_type.replace('_', ' ')}</p>
+                      </div>
+                      <Link
+                        to="/profile"
+                        onClick={() => setUserMenuOpen(false)}
+                        className="block px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-800 dark:hover:text-gray-100"
+                      >
+                        Profile
+                      </Link>
+                      <button
+                        onClick={() => {
+                          setUserMenuOpen(false);
+                          onLogout();
+                        }}
+                        className="w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-800 dark:hover:text-gray-100 border-t border-gray-100 dark:border-gray-800"
+                      >
+                        Sign out
+                      </button>
                     </div>
-                    <Link
-                      to="/profile"
-                      className="block px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-800 dark:hover:text-gray-100"
-                    >
-                      Profile
-                    </Link>
-                    <button
-                      onClick={onLogout}
-                      className="w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-800 dark:hover:text-gray-100 border-t border-gray-100 dark:border-gray-800"
-                    >
-                      Sign out
-                    </button>
-                  </div>
+                  )}
                 </div>
               </>
             ) : (

@@ -76,18 +76,29 @@ async def get_matched_jobs(
         db.query(Application.job_id).filter(Application.user_id == current_user.id).all()
     }
 
+    # Semantic similarity is the other big cost here -- match_job() used to
+    # build a fresh TfidfVectorizer per job, which is thousands of vectorizer
+    # builds once there are thousands of synced jobs. Fit one vectorizer
+    # across the resume + every job's text up front instead, and hand each
+    # job its own already-computed similarity below.
+    resume_text = (resume.summary or "").strip() or " ".join(resume.skills)
+    job_texts = [
+        (job.description or "").strip() or " ".join(job.required_skills + job.nice_to_have_skills)
+        for job in jobs
+    ]
+    semantic_similarities = matcher.calculate_batch_semantic_similarity(resume_text, job_texts)
+
     # Calculate match for each job
     matched_jobs = []
 
-    for job in jobs:
+    for job, semantic_similarity in zip(jobs, semantic_similarities):
         match_result = matcher.match_job(
             user_skills=resume.skills,
             job_required_skills=job.required_skills,
             job_nice_to_have=job.nice_to_have_skills,
             user_experience_years=resume.experience_years,
             job_experience_level=job.experience_level,
-            user_resume_text=resume.summary,
-            job_description_text=job.description
+            precomputed_semantic_similarity=semantic_similarity
         )
 
         is_saved = job.id in saved_ids
