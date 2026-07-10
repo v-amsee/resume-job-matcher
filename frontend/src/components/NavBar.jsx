@@ -85,9 +85,15 @@ export default function NavBar({ user, onLogout, onLoginClick, onRegisterClick, 
                       <p className="text-sm font-medium text-gray-900 truncate dark:text-gray-100">{user.email}</p>
                       <p className="text-xs text-gray-500 capitalize mt-0.5 dark:text-gray-400">{user.user_type.replace('_', ' ')}</p>
                     </div>
+                    <Link
+                      to="/profile"
+                      className="block px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-800 dark:hover:text-gray-100"
+                    >
+                      Profile
+                    </Link>
                     <button
                       onClick={onLogout}
-                      className="w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-800 dark:hover:text-gray-100"
+                      className="w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-800 dark:hover:text-gray-100 border-t border-gray-100 dark:border-gray-800"
                     >
                       Sign out
                     </button>
@@ -136,6 +142,9 @@ export default function NavBar({ user, onLogout, onLoginClick, onRegisterClick, 
             </Link>
             <Link to="/saved-jobs" className="block px-3 py-2 text-sm text-gray-700 hover:text-gray-900 dark:text-gray-300 dark:hover:text-gray-100">
               Saved
+            </Link>
+            <Link to="/profile" className="block px-3 py-2 text-sm text-gray-700 hover:text-gray-900 dark:text-gray-300 dark:hover:text-gray-100">
+              Profile
             </Link>
             <button
               onClick={onToggleTheme}

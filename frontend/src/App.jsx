@@ -12,6 +12,7 @@ import JobDetails from './pages/JobDetails';
 import Applications from './pages/Applications';
 import SavedJobs from './pages/SavedJobs';
 import ResetPassword from './pages/ResetPassword';
+import Profile from './pages/Profile';
 
 import './index.css';
 
@@ -111,6 +112,11 @@ function App() {
     setUser(null);
   };
 
+  const handleProfileUpdate = (updatedUser) => {
+    localStorage.setItem('user', JSON.stringify(updatedUser));
+    setUser(updatedUser);
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-950">
@@ -165,6 +171,7 @@ function App() {
               <Route path="/jobs/:jobId" element={<JobDetails user={user} />} />
               <Route path="/applications" element={<Applications />} />
               <Route path="/saved-jobs" element={<SavedJobs />} />
+              <Route path="/profile" element={<Profile user={user} onProfileUpdate={handleProfileUpdate} />} />
             </>
           )}
 
